@@ -1,0 +1,226 @@
+// 📦 React
+import React, { useState } from "react";
+
+// 📱 Componentes
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  StyleSheet,
+  Pressable,
+  Modal,
+  Platform,
+} from "react-native";
+
+// 📂 Selector de archivos
+import * as DocumentPicker from "expo-document-picker";
+
+// 🌐 HTTP
+import axios from "axios";
+
+// 🔗 Abrir enlaces
+import * as Linking from "expo-linking";
+
+// 🧾 WebView (solo móvil)
+import { WebView } from "react-native-webview";
+
+export default function Home() {
+  // 📁 archivo seleccionado
+  const [file, setFile] = useState<any>(null);
+
+  // ⏳ loading
+  const [loading, setLoading] = useState(false);
+
+  // 🔗 URL del PDF
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+  // 🪟 modal
+  const [modalVisible, setModalVisible] = useState(false);
+
+  // 📂 seleccionar archivo
+  const pickFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({});
+    if (!result.canceled) {
+      setFile(result.assets[0]);
+      setPdfUrl(null);
+    }
+  };
+
+  // 🚀 enviar archivo al backend
+  const sendFile = async () => {
+    if (!file) {
+      alert("Selecciona un archivo");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const formData = new FormData();
+
+      // 🌐 WEB
+      if (Platform.OS === "web") {
+        const response = await fetch(file.uri);
+        const blob = await response.blob();
+        formData.append("file", blob, file.name);
+      } else {
+        // 📱 MÓVIL
+        formData.append("file", {
+          uri: file.uri,
+          name: file.name,
+          type: file.mimeType || "application/octet-stream",
+        } as any);
+      }
+
+      // ⚠️ CAMBIA TU IP
+      const response = await axios.post(
+        "http://192.168.100.9:3001/convert",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setPdfUrl(response.data.url);
+
+    } catch (error) {
+      console.log(error);
+      alert("Error al convertir");
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* 🧾 título */}
+      <Text style={styles.title}>📄 Convertidor a PDF</Text>
+
+      {/* 📂 seleccionar */}
+      <Pressable style={styles.button} onPress={pickFile}>
+        <Text style={styles.buttonText}>Seleccionar archivo</Text>
+      </Pressable>
+
+      {/* 📁 nombre */}
+      {file && <Text style={styles.file}>{file.name}</Text>}
+
+      {/* 🚀 convertir */}
+      <Pressable style={styles.buttonPrimary} onPress={sendFile}>
+        <Text style={styles.buttonText}>Convertir a PDF</Text>
+      </Pressable>
+
+      {/* ⏳ loading */}
+      {loading && <ActivityIndicator size="large" style={{ marginTop: 20 }} />}
+
+      {/* ✅ resultado */}
+      {pdfUrl && (
+        <View style={styles.resultBox}>
+          <Text style={{ marginBottom: 10 }}>PDF listo ✅</Text>
+
+          {/* 👀 VER PDF */}
+          <Pressable
+            style={styles.button}
+            onPress={() => {
+              if (Platform.OS === "web") {
+                // 🌐 abre en nueva pestaña
+                window.open(pdfUrl);
+              } else {
+                // 📱 abre modal
+                setModalVisible(true);
+              }
+            }}
+          >
+            <Text style={styles.buttonText}>Ver PDF</Text>
+          </Pressable>
+
+          {/* ⬇️ DESCARGAR */}
+          <Pressable
+            style={styles.buttonPrimary}
+            onPress={() => Linking.openURL(pdfUrl)}
+          >
+            <Text style={styles.buttonText}>Descargar PDF</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* 🪟 MODAL SOLO EN MÓVIL */}
+      {Platform.OS !== "web" && (
+        <Modal visible={modalVisible} animationType="slide">
+          <View style={{ flex: 1 }}>
+            {/* ❌ cerrar */}
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={{ color: "white" }}>Cerrar</Text>
+            </Pressable>
+
+            {/* 🧾 PDF */}
+            {pdfUrl && (
+              <WebView
+                source={{ uri: pdfUrl }}
+                style={{ flex: 1 }}
+              />
+            )}
+          </View>
+        </Modal>
+      )}
+    </View>
+  );
+}
+
+// 🎨 estilos
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  title: {
+    fontSize: 22,
+    color: "white",
+    marginBottom: 20,
+    fontWeight: "bold",
+  },
+  button: {
+    backgroundColor: "#374151",
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+    width: "80%",
+    alignItems: "center",
+  },
+  buttonPrimary: {
+    backgroundColor: "#2563eb",
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+    width: "80%",
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "white",
+    fontWeight: "bold",
+  },
+  file: {
+    color: "#9ca3af",
+    marginTop: 10,
+  },
+  resultBox: {
+    marginTop: 25,
+    padding: 15,
+    backgroundColor: "#1f2937",
+    borderRadius: 10,
+    alignItems: "center",
+    width: "100%",
+  },
+  closeButton: {
+    backgroundColor: "#ef4444",
+    padding: 10,
+    alignItems: "center",
+  },
+});
